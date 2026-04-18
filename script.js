@@ -45,8 +45,8 @@ L.tileLayer(`https://{s}.api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x
 // --- PHẦN THÊM MỚI: Nạp ranh giới 168 phường xã ---
 async function loadNewBoundaries() {
     try {
-        // Thay 'data/hcm_wards_2026.json' bằng đường dẫn file bạn vừa export từ Mapshaper
-        const response = await fetch('data/hcm_wards_2026.json');
+        // Thay 'DevKen1.json' bằng đường dẫn file bạn vừa export từ Mapshaper
+        const response = await fetch('DevKen1.json');
         const geoData = await response.json();
 
         L.geoJSON(geoData, {
