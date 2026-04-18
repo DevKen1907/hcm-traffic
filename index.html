@@ -15,17 +15,19 @@
         #map { height: 380px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #ddd; z-index: 1; }
         .list-container { 
             background: #ffffff; border-radius: 12px; border: 1px solid #ddd; 
-            max-height: 400px; overflow-y: auto; /* Cho phép cuộn danh sách */
+            max-height: 400px; overflow-y: auto; 
         }
         .list-header {
             padding: 10px 15px; background: #f8f9fa; border-bottom: 1px solid #ddd;
-            font-weight: bold; font-size: 13px; position: sticky; top: 0; border-radius: 12px 12px 0 0;
+            font-weight: bold; font-size: 13px; position: sticky; top: 0; border-radius: 12px 12px 0 0; z-index: 10;
         }
         .location-item { 
             display: flex; justify-content: space-between; align-items: center; 
-            padding: 12px 15px; border-bottom: 1px solid #f0f2f5; font-size: 13px; 
+            padding: 14px 15px; border-bottom: 1px solid #f0f2f5; font-size: 13px; 
+            cursor: pointer; transition: background 0.2s;
         }
-        .location-item:last-child { border-bottom: none; }
+        .location-item:active { background-color: #e8f0fe; } /* Hiệu ứng khi chạm trên mobile */
+        .location-item:hover { background-color: #f8f9fa; }
         .dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
         .bg-red { background-color: #ff5252; }
         .bg-green { background-color: #00e676; }
@@ -43,7 +45,7 @@
     <div id="map"></div>
 
     <div class="list-container">
-        <div class="list-header">CHI TIẾT LƯU LƯỢNG (% THÔNG THOÁNG)</div>
+        <div class="list-header">CHẠM ĐỂ XEM CHI TIẾT ĐIỂM ÙN TẮC</div>
         <div id="location-list"></div>
     </div>
 
