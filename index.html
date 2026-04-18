@@ -1,26 +1,38 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HCM Traffic Alert</title>
+    <title>HCM Traffic Monitor Pro</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; padding: 20px; }
-        .status-card { 
-            padding: 20px; border-radius: 15px; margin-bottom: 20px;
-            border-left: 8px solid #555; background: #1e1e1e;
+        body { font-family: sans-serif; background: #121212; color: white; margin: 0; padding: 10px; }
+        .header { text-align: center; padding: 10px; background: #1e1e1e; border-radius: 10px; margin-bottom: 10px; }
+        #map { height: 350px; border-radius: 10px; margin-bottom: 10px; border: 1px solid #333; }
+        .list-container { background: #1e1e1e; border-radius: 10px; padding: 10px; }
+        .location-item { 
+            display: flex; justify-content: space-between; padding: 12px; 
+            border-bottom: 1px solid #333; font-size: 14px; 
         }
-        .danger { border-left-color: #f44336; background: #2c1a1a; }
-        .safe { border-left-color: #4caf50; background: #1a2c1a; }
-        h1 { font-size: 1.5rem; }
-        pre { background: #000; padding: 10px; font-size: 11px; color: #0f0; overflow-x: auto; }
+        .location-item:last-child { border-bottom: none; }
+        .dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .bg-red { background-color: #ff5252; box-shadow: 0 0 10px #ff5252; }
+        .bg-green { background-color: #69f0ae; }
+        .status-text { font-weight: bold; }
     </style>
 </head>
 <body>
-    <h1>Giám sát Giao thông TP.HCM</h1>
-    <div id="status" class="status-card">Đang lấy dữ liệu...</div>
-    <p>Dữ liệu JSON chi tiết:</p>
-    <pre id="json-output"></pre>
+    <div class="header">
+        <h2 style="margin:0; font-size: 18px;">Giám sát Giao thông TP.HCM</h2>
+        <div id="global-status" style="font-size: 12px; margin-top: 5px;">Đang quét dữ liệu...</div>
+    </div>
+    
+    <div id="map"></div>
+
+    <div class="list-container" id="location-list">
+        </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
