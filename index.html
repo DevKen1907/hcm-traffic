@@ -2,50 +2,44 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>HCM Traffic Monitor Pro - 31 Điểm Nóng</title>
+    <title>HCM Traffic Monitor Pro - Hybrid</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <style>
-        body { font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; color: #1c1e21; margin: 0; padding: 10px; }
-        .header { 
-            text-align: center; padding: 12px; background: #ffffff; border-radius: 12px; 
-            margin-bottom: 10px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
+        body { font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; margin: 0; padding: 10px; }
+        .header { text-align: center; padding: 12px; background: #fff; border-radius: 12px; margin-bottom: 10px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         #map { height: 380px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #ddd; z-index: 1; }
-        .list-container { 
-            background: #ffffff; border-radius: 12px; border: 1px solid #ddd; 
-            max-height: 400px; overflow-y: auto; 
-        }
-        .list-header {
-            padding: 10px 15px; background: #f8f9fa; border-bottom: 1px solid #ddd;
-            font-weight: bold; font-size: 13px; position: sticky; top: 0; border-radius: 12px 12px 0 0; z-index: 10;
-        }
-        .location-item { 
-            display: flex; justify-content: space-between; align-items: center; 
-            padding: 14px 15px; border-bottom: 1px solid #f0f2f5; font-size: 13px; 
-            cursor: pointer; transition: background 0.2s;
-        }
-        .location-item:active { background-color: #e8f0fe; } /* Hiệu ứng khi chạm trên mobile */
-        .location-item:hover { background-color: #f8f9fa; }
+        .list-container { background: #fff; border-radius: 12px; border: 1px solid #ddd; max-height: 350px; overflow-y: auto; }
+        .list-header { padding: 10px 15px; background: #f8f9fa; border-bottom: 1px solid #ddd; font-weight: bold; font-size: 13px; position: sticky; top: 0; z-index: 10; border-radius: 12px 12px 0 0; }
+        .location-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 15px; border-bottom: 1px solid #f0f2f5; font-size: 13px; cursor: pointer; transition: 0.2s; }
+        .location-item:active { background: #e8f0fe; }
         .dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
-        .bg-red { background-color: #ff5252; }
-        .bg-green { background-color: #00e676; }
+        .bg-red { background: #ff5252; }
+        .bg-green { background: #00e676; }
         #global-status { font-weight: bold; font-size: 12px; text-transform: uppercase; margin-top: 5px; }
-        .loading { animation: pulse 1.5s infinite; color: #888; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        /* Floating Action Buttons */
+        .fab-container { position: absolute; top: 80px; right: 15px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+        .fab { width: 45px; height: 45px; border-radius: 50%; border: none; color: white; cursor: pointer; box-shadow: 0 3px 6px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .btn-waze { background: #33ccff; }
+        .btn-refresh { background: #1a73e8; }
     </style>
 </head>
 <body>
+    <div class="fab-container">
+        <button class="fab btn-refresh" onclick="monitorTraffic()" title="Làm mới dữ liệu"><i class="fas fa-sync-alt"></i></button>
+        <button class="fab btn-waze" onclick="fetchWazeIncidents()" title="Quét sự cố Waze"><i class="fab fa-waze"></i></button>
+    </div>
+
     <div class="header">
-        <h2 style="margin:0; font-size: 16px; color: #1a73e8;">GIÁM SÁT 31 ĐIỂM NÓNG TP.HCM</h2>
-        <div id="global-status" class="loading">Đang kết nối trung tâm dữ liệu...</div>
+        <h2 style="margin:0; font-size: 16px; color: #1a73e8;">HỆ THỐNG GIÁM SÁT GIAO THÔNG HCM</h2>
+        <div id="global-status">Đang tải...</div>
     </div>
     
     <div id="map"></div>
-
     <div class="list-container">
-        <div class="list-header">CHẠM ĐỂ XEM CHI TIẾT ĐIỂM ÙN TẮC</div>
+        <div class="list-header">CHI TIẾT 31 ĐIỂM NÓNG</div>
         <div id="location-list"></div>
     </div>
 
