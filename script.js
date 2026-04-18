@@ -1,5 +1,4 @@
-const KEY = 'ZJKb9h3uTUa2U3XEdlubQ7aRMqHPR9XZ';
-const PROXY_URL = "https://script.google.com/macros/s/AKfycbzSf24pxd2YZC8b6D2hzLFOfJ5OGj3CU2uEoAlToVn7mjfkCwR9ZZVFc5lyFtEAejZe/exec";
+const TOMTOM_KEY = 'ZJKb9h3uTUa2U3XEdlubQ7aRMqHPR9XZ';
 
 const LOCATIONS = [
     { name: "Cầu Xáng (Trần Văn Giàu)", lat: 10.8175, lon: 106.5165 },
@@ -23,7 +22,7 @@ const LOCATIONS = [
     { name: "Trường Chinh (Âu Cơ - TKTQ)", lat: 10.8015, lon: 106.6395 },
     { name: "Đinh Bộ Lĩnh - Bạch Đằng", lat: 10.8025, lon: 106.7065 },
     { name: "Xô Viết Nghệ Tĩnh (Hàng Xanh)", lat: 10.8055, lon: 106.7115 },
-    { name: "Nguyễn Văn Linh - Phạm Hùng", lat: 10.7265, lon: 106.6785 },
+    { name: "Nguyễn Văn Linh - Phạm Hùng", lat: 10.7265, lon: 106.6775 },
     { name: "Ngã tư Bốn xã", lat: 10.7725, lon: 106.6215 },
     { name: "Ngã tư Hàng Xanh", lat: 10.8015, lon: 106.7115 },
     { name: "Cầu Phú Cường", lat: 10.9655, lon: 106.6465 },
@@ -35,111 +34,102 @@ const LOCATIONS = [
     { name: "Cầu vượt Tân Vạn", lat: 10.8875, lon: 106.8285 }
 ];
 
-// Khởi tạo bản đồ Leaflet
 var map = L.map('map', { center: [10.7769, 106.7009], zoom: 11, zoomControl: false });
 
-// Layer nền TomTom và Layer Traffic Flow
-L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${KEY}`).addTo(map);
-L.tileLayer(`https://{s}.api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${KEY}`, { opacity: 0.6 }).addTo(map);
+// 1. Layer nền TomTom
+L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`).addTo(map);
+
+// 2. Layer Traffic Flow (Hiển thị các đường màu xanh/đỏ trên bản đồ)
+L.tileLayer(`https://{s}.api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`, { opacity: 0.7 }).addTo(map);
 
 var markers = {};
-var wazeLayer = L.layerGroup().addTo(map);
+var incidentLayer = L.layerGroup().addTo(map);
 
-// Hàm Zoom đến vị trí điểm nóng
 function focusOn(lat, lon, name) {
     map.setView([lat, lon], 16);
     if(markers[name]) markers[name].openPopup();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// Hàm lấy dữ liệu Waze qua Apps Script Proxy cá nhân của bạn
-async function fetchWazeIncidents() {
-    const statusBox = document.getElementById('global-status');
-    const originalText = statusBox.innerText;
-    statusBox.innerText = "ĐANG QUÉT WAZE...";
-    
+// Hàm lấy dữ liệu sự cố (Accidents/Road Closure) từ TomTom Incident API
+async function fetchTomTomIncidents() {
+    // Bounding Box của HCM
+    const bbox = "106.3,10.5,107.0,11.1"; 
+    const url = `https://api.tomtom.com/traffic/services/4/incidentDetails/s3/${bbox}/11/-1/json?key=${TOMTOM_KEY}&trafficModelID=-1`;
+
     try {
-        // Sử dụng link Apps Script bạn cung cấp
-        const res = await fetch(PROXY_URL);
+        const res = await fetch(url);
         const data = await res.json();
-        
-        if (data.error) throw new Error(data.error);
+        incidentLayer.clearLayers();
 
-        wazeLayer.clearLayers();
-        let count = 0;
+        if (data.tm && data.tm.poi) {
+            data.tm.poi.forEach(incident => {
+                // p: loại sự cố (1: Tai nạn, 2: Kẹt xe, 8: Đóng đường...)
+                let iconHtml = '';
+                if (incident.p === 1) iconHtml = '⚠️'; // Tai nạn
+                if (incident.p === 8) iconHtml = '🚫'; // Đóng đường
+                if (incident.p === 6) iconHtml = '🚧'; // Công trình
 
-        if (data.alerts && data.alerts.length > 0) {
-            data.alerts.forEach(a => {
-                // Lọc sự cố: Tai nạn, Đóng đường, hoặc Kẹt xe nặng
-                if (a.type === "ACCIDENT" || a.type === "ROAD_CLOSED" || a.type === "JAM") {
-                    count++;
-                    const wIcon = L.divIcon({
-                        html: `<div style="background:white; border-radius:50%; padding:3px; border:2px solid #33ccff; display:flex; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"><img src="https://www.waze.com/favicon.ico" width="18"></div>`,
-                        className: '', iconSize: [26, 26]
+                if (iconHtml) {
+                    const icon = L.divIcon({
+                        html: `<div style="font-size: 20px;">${iconHtml}</div>`,
+                        className: '', iconSize: [25, 25]
                     });
-                    
-                    L.marker([a.location.y, a.location.x], {icon: wIcon})
-                     .addTo(wazeLayer)
-                     .bindPopup(`<b>Waze: ${a.subtype || a.type}</b><br>${a.reportDescription || 'Không có mô tả chi tiết'}<br><small>Cập nhật: ${new Date().toLocaleTimeString()}</small>`);
+                    L.marker([incident.y, incident.x], {icon: icon})
+                     .addTo(incidentLayer)
+                     .bindPopup(`<b>Sự cố:</b> ${incident.d || 'Đang cập nhật'}`);
                 }
             });
-            alert(`Đã tìm thấy ${count} báo cáo sự cố từ Waze.`);
-        } else {
-            alert("Khu vực hiện tại không có báo cáo sự cố nào từ Waze.");
         }
     } catch (e) {
-        console.error("Lỗi kết nối Waze Proxy:", e);
-        alert("Không thể kết nối tới dữ liệu Waze. Hãy đảm bảo bạn đã 'Deploy' Apps Script ở chế độ 'Anyone'.");
+        console.error("Lỗi lấy sự cố TomTom", e);
     }
-    statusBox.innerText = originalText;
 }
 
-// Hàm giám sát thông thoáng các điểm nóng (Dữ liệu TomTom)
-async function monitorTraffic() {
+// Hàm giám sát tốc độ tại 31 điểm
+async function updateTrafficData() {
     const list = document.getElementById('location-list');
     const statusBox = document.getElementById('global-status');
-    let danger = 0;
+    statusBox.innerText = "ĐANG CẬP NHẬT DỮ LIỆU...";
+    
+    let dangerCount = 0;
     if (list) list.innerHTML = '';
 
-    // Dùng Promise.all để load dữ liệu nhanh hơn thay vì đợi từng cái
+    await fetchTomTomIncidents(); // Cập nhật sự cố trước
+
     const promises = LOCATIONS.map(async (loc) => {
         try {
-            const res = await fetch(`https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?key=${KEY}&point=${loc.lat},${loc.lon}`);
+            const res = await fetch(`https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?key=${TOMTOM_KEY}&point=${loc.lat},${loc.lon}`);
             const data = await res.json();
             const flow = data.flowSegmentData;
             
-            // Tính tỷ lệ phần trăm thông thoáng
             const ratio = (flow.currentSpeed / flow.freeFlowSpeed) * 100;
-            const isRed = ratio < 45;
-            if(isRed) danger++;
+            const isCongested = ratio < 45;
+            if(isCongested) dangerCount++;
 
-            const color = isRed ? '#ff5252' : '#00e676';
+            const color = isCongested ? '#d93025' : '#188038';
             
-            // Cập nhật marker trên bản đồ
             if(markers[loc.name]) map.removeLayer(markers[loc.name]);
-            markers[loc.name] = L.circleMarker([loc.lat, loc.lon], { radius: 7, color: color, fillColor: color, fillOpacity: 0.8 })
-                .addTo(map).bindPopup(`<b>${loc.name}</b><br>Tốc độ hiện tại: ${flow.currentSpeed} km/h`);
+            markers[loc.name] = L.circleMarker([loc.lat, loc.lon], { 
+                radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.9 
+            }).addTo(map).bindPopup(`<b>${loc.name}</b><br>Tốc độ: ${flow.currentSpeed} km/h`);
 
-            // Tạo item trong danh sách bên dưới
             const div = document.createElement('div');
             div.className = 'location-item';
             div.onclick = () => focusOn(loc.lat, loc.lon, loc.name);
-            div.innerHTML = `<span><span class="dot ${isRed?'bg-red':'bg-green'}"></span>${loc.name}</span><b style="color:${color}">${ratio.toFixed(0)}%</b>`;
-            return { element: div, isRed: isRed };
-        } catch(e) { 
-            return null; 
-        }
+            div.innerHTML = `
+                <span><span class="dot ${isCongested?'bg-red':'bg-green'}"></span>${loc.name}</span>
+                <b style="color:${color}">${ratio.toFixed(0)}%</b>
+            `;
+            return { element: div, congested: isCongested };
+        } catch(e) { return null; }
     });
 
     const results = await Promise.all(promises);
-    results.forEach(res => {
-        if(res) list.appendChild(res.element);
-    });
+    results.forEach(r => { if(r) list.appendChild(r.element); });
 
-    statusBox.innerText = danger > 0 ? `CẢNH BÁO: ${danger} ĐIỂM ÙN TẮC` : "GIAO THÔNG ỔN ĐỊNH";
-    statusBox.style.color = danger > 0 ? '#ff5252' : '#00e676';
+    statusBox.innerText = dangerCount > 0 ? `CẢNH BÁO: ${dangerCount} ĐIỂM ÙN TẮC` : "GIAO THÔNG ĐANG ỔN ĐỊNH";
+    statusBox.style.color = dangerCount > 0 ? '#d93025' : '#188038';
 }
 
-// Khởi chạy lần đầu và thiết lập tự động cập nhật mỗi 2 phút
-monitorTraffic();
-setInterval(monitorTraffic, 120000);
+updateTrafficData();
+setInterval(updateTrafficData, 120000); // Tự động cập nhật mỗi 2 phút
