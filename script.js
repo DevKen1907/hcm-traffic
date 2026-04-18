@@ -36,67 +36,86 @@ const LOCATIONS = [
 
 var map = L.map('map', { center: [10.7769, 106.7009], zoom: 11, zoomControl: false });
 
-L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${KEY}`, {
-    maxZoom: 22, attribution: '© TomTom'
-}).addTo(map);
+// 1. Layer nền TomTom sáng
+L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${KEY}`).addTo(map);
 
-L.tileLayer(`https://{s}.api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${KEY}`, {
-    maxZoom: 22, tileSize: 256, opacity: 0.7
-}).addTo(map);
+// 2. Layer Traffic Flow
+L.tileLayer(`https://{s}.api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${KEY}`, { opacity: 0.6 }).addTo(map);
 
 var markers = {};
+var wazeLayer = L.layerGroup().addTo(map);
 
-// Hàm phóng to bản đồ vào vị trí được chọn
-function focusLocation(lat, lon, name) {
-    map.setView([lat, lon], 16); // Phóng to mức 16 để thấy rõ đường kẹt
-    if (markers[name]) {
-        markers[name].openPopup();
-    }
-    // Cuộn bản đồ lên đầu màn hình nếu đang dùng điện thoại
+// Hàm Zoom đến vị trí
+function focusOn(lat, lon, name) {
+    map.setView([lat, lon], 16);
+    if(markers[name]) markers[name].openPopup();
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-async function monitorTraffic() {
-    const listContainer = document.getElementById('location-list');
+// Hàm lấy dữ liệu Waze (Dùng Proxy để bypass CORS)
+async function fetchWazeIncidents() {
     const statusBox = document.getElementById('global-status');
-    let dangerCount = 0;
-    if (listContainer) listContainer.innerHTML = ''; 
+    statusBox.innerText = "ĐANG QUÉT WAZE...";
+    
+    // Bounding box HCM
+    const url = "https://corsproxy.io/?https://www.waze.com/row-rtserver/web/TGeoRSS?left=106.5&right=106.9&bottom=10.6&top=10.9";
+    
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        wazeLayer.clearLayers();
+        
+        let count = 0;
+        data.alerts.forEach(a => {
+            if (a.type === "ACCIDENT" || a.type === "ROAD_CLOSED") {
+                count++;
+                const wIcon = L.divIcon({
+                    html: `<div style="background:white; border-radius:50%; padding:3px; border:2px solid #33ccff; display:flex;"><img src="https://www.waze.com/favicon.ico" width="16"></div>`,
+                    className: '', iconSize: [24, 24]
+                });
+                L.marker([a.location.y, a.location.x], {icon: wIcon})
+                 .addTo(wazeLayer)
+                 .bindPopup(`<b>Waze: ${a.subtype || a.type}</b><br>${a.reportDescription || ''}`);
+            }
+        });
+        alert(`Đã tìm thấy ${count} báo cáo từ Waze.`);
+    } catch (e) {
+        alert("Không thể lấy dữ liệu Waze. Hãy thử lại sau.");
+    }
+    monitorTraffic(); // Refresh lại status TomTom
+}
+
+// Hàm giám sát chính
+async function monitorTraffic() {
+    const list = document.getElementById('location-list');
+    const statusBox = document.getElementById('global-status');
+    let danger = 0;
+    if (list) list.innerHTML = '';
 
     for (let loc of LOCATIONS) {
         try {
-            const apiUrl = `https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?key=${KEY}&point=${loc.lat},${loc.lon}`;
-            const res = await fetch(apiUrl);
+            const res = await fetch(`https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?key=${KEY}&point=${loc.lat},${loc.lon}`);
             const data = await res.json();
             const flow = data.flowSegmentData;
-
             const ratio = (flow.currentSpeed / flow.freeFlowSpeed) * 100;
-            const isDanger = (ratio < 45); 
-            if (isDanger) dangerCount++;
+            const isRed = ratio < 45;
+            if(isRed) danger++;
 
-            const color = isDanger ? '#ff5252' : '#00e676';
-            if (markers[loc.name]) map.removeLayer(markers[loc.name]);
+            const color = isRed ? '#ff5252' : '#00e676';
+            if(markers[loc.name]) map.removeLayer(markers[loc.name]);
             
-            markers[loc.name] = L.circleMarker([loc.lat, lon = loc.lon], {
-                radius: 7, color: color, fillColor: color, fillOpacity: 0.8
-            }).addTo(map).bindPopup(`<b>${loc.name}</b><br>Tốc độ: ${flow.currentSpeed} km/h`);
+            markers[loc.name] = L.circleMarker([loc.lat, loc.lon], { radius: 7, color: color, fillColor: color, fillOpacity: 0.8 })
+                .addTo(map).bindPopup(`<b>${loc.name}</b><br>Tốc độ: ${flow.currentSpeed} km/h`);
 
-            if (listContainer) {
-                const item = document.createElement('div');
-                item.className = 'location-item';
-                // Gán sự kiện click cho từng dòng
-                item.onclick = () => focusLocation(loc.lat, loc.lon, loc.name);
-                
-                item.innerHTML = `<span><span class="dot ${isDanger ? 'bg-red' : 'bg-green'}"></span>${loc.name}</span><b style="color: ${color}">${ratio.toFixed(0)}%</b>`;
-                listContainer.appendChild(item);
-            }
-        } catch (e) { console.error(loc.name); }
+            const div = document.createElement('div');
+            div.className = 'location-item';
+            div.onclick = () => focusOn(loc.lat, loc.lon, loc.name);
+            div.innerHTML = `<span><span class="dot ${isRed?'bg-red':'bg-green'}"></span>${loc.name}</span><b style="color:${color}">${ratio.toFixed(0)}%</b>`;
+            list.appendChild(div);
+        } catch(e) {}
     }
-
-    if (statusBox) {
-        statusBox.classList.remove('loading');
-        statusBox.innerText = dangerCount > 0 ? `PHÁT HIỆN ${dangerCount} ĐIỂM ĐANG ÙN TẮC` : "GIAO THÔNG 31 ĐIỂM ỔN ĐỊNH";
-        statusBox.style.color = dangerCount > 0 ? '#ff5252' : '#00e676';
-    }
+    statusBox.innerText = danger > 0 ? `CẢNH BÁO: ${danger} ĐIỂM ÙN TẮC` : "GIAO THÔNG ỔN ĐỊNH";
+    statusBox.style.color = danger > 0 ? '#ff5252' : '#00e676';
 }
 
 monitorTraffic();
