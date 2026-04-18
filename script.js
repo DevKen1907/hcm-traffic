@@ -19,7 +19,7 @@ const LOCATIONS = [
 ];
 
 // Giữ nguyên phần code khởi tạo map và hàm checkAllLocations bên dưới
-const map = L.map('map').setView([10.785, 106.695], 13);
+const map = L.map('map').setView([10.800, 106.700], 11);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 let markers = {};
