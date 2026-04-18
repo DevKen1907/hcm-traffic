@@ -46,6 +46,16 @@ L.tileLayer(`https://{s}.api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x
 
 var markers = {};
 
+// Hàm phóng to bản đồ vào vị trí được chọn
+function focusLocation(lat, lon, name) {
+    map.setView([lat, lon], 16); // Phóng to mức 16 để thấy rõ đường kẹt
+    if (markers[name]) {
+        markers[name].openPopup();
+    }
+    // Cuộn bản đồ lên đầu màn hình nếu đang dùng điện thoại
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 async function monitorTraffic() {
     const listContainer = document.getElementById('location-list');
     const statusBox = document.getElementById('global-status');
@@ -66,13 +76,16 @@ async function monitorTraffic() {
             const color = isDanger ? '#ff5252' : '#00e676';
             if (markers[loc.name]) map.removeLayer(markers[loc.name]);
             
-            markers[loc.name] = L.circleMarker([loc.lat, loc.lon], {
+            markers[loc.name] = L.circleMarker([loc.lat, lon = loc.lon], {
                 radius: 7, color: color, fillColor: color, fillOpacity: 0.8
             }).addTo(map).bindPopup(`<b>${loc.name}</b><br>Tốc độ: ${flow.currentSpeed} km/h`);
 
             if (listContainer) {
                 const item = document.createElement('div');
                 item.className = 'location-item';
+                // Gán sự kiện click cho từng dòng
+                item.onclick = () => focusLocation(loc.lat, loc.lon, loc.name);
+                
                 item.innerHTML = `<span><span class="dot ${isDanger ? 'bg-red' : 'bg-green'}"></span>${loc.name}</span><b style="color: ${color}">${ratio.toFixed(0)}%</b>`;
                 listContainer.appendChild(item);
             }
