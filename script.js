@@ -42,6 +42,35 @@ L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?ke
 // 2. Layer Traffic Flow (Hiển thị các đường màu xanh/đỏ trên bản đồ)
 L.tileLayer(`https://{s}.api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`, { opacity: 0.7 }).addTo(map);
 
+// --- PHẦN THÊM MỚI: Nạp ranh giới 168 phường xã ---
+async function loadNewBoundaries() {
+    try {
+        // Thay 'data/hcm_wards_2026.json' bằng đường dẫn file bạn vừa export từ Mapshaper
+        const response = await fetch('data/hcm_wards_2026.json');
+        const geoData = await response.json();
+
+        L.geoJSON(geoData, {
+            style: {
+                color: '#2c3e50', // Màu đường ranh giới (xám đậm)
+                weight: 1,
+                opacity: 0.5,
+                fillColor: '#34495e',
+                fillOpacity: 0.05 // Để mờ để không đè mất lớp traffic
+            },
+            onEachFeature: function (feature, layer) {
+                // Hiển thị tên phường mới khi di chuột vào vùng ranh giới
+                if (feature.properties && feature.properties.name) {
+                    layer.bindTooltip(feature.properties.name, { sticky: true });
+                }
+            }
+        }).addTo(map);
+    } catch (error) {
+        console.error("Không thể nạp dữ liệu ranh giới:", error);
+    }
+}
+loadNewBoundaries();
+// ------------------------------------------------
+
 var markers = {};
 var incidentLayer = L.layerGroup().addTo(map);
 
