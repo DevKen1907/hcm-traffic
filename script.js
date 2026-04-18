@@ -45,47 +45,55 @@ L.tileLayer(`https://{s}.api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x
 var markers = {};
 var wazeLayer = L.layerGroup().addTo(map);
 
-// Hàm Zoom đến vị trí
 function focusOn(lat, lon, name) {
     map.setView([lat, lon], 16);
     if(markers[name]) markers[name].openPopup();
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// Hàm lấy dữ liệu Waze (Dùng Proxy để bypass CORS)
+// HÀM ĐÃ SỬA THEO CÁCH 1 (Dùng AllOrigins Proxy)
 async function fetchWazeIncidents() {
     const statusBox = document.getElementById('global-status');
     statusBox.innerText = "ĐANG QUÉT WAZE...";
     
-    // Bounding box HCM
-    const url = "https://corsproxy.io/?https://www.waze.com/row-rtserver/web/TGeoRSS?left=106.5&right=106.9&bottom=10.6&top=10.9";
+    // Gốc URL Waze
+    const wazeUrl = "https://www.waze.com/row-rtserver/web/TGeoRSS?left=106.5&right=106.9&bottom=10.6&top=10.9";
+    // Bọc qua AllOrigins để bypass CORS
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(wazeUrl)}`;
     
     try {
-        const res = await fetch(url);
-        const data = await res.json();
-        wazeLayer.clearLayers();
+        const res = await fetch(proxyUrl);
+        const wrapper = await res.json();
+        // AllOrigins bọc JSON trong trường .contents dưới dạng chuỗi (string)
+        const data = JSON.parse(wrapper.contents); 
         
+        wazeLayer.clearLayers();
         let count = 0;
-        data.alerts.forEach(a => {
-            if (a.type === "ACCIDENT" || a.type === "ROAD_CLOSED") {
-                count++;
-                const wIcon = L.divIcon({
-                    html: `<div style="background:white; border-radius:50%; padding:3px; border:2px solid #33ccff; display:flex;"><img src="https://www.waze.com/favicon.ico" width="16"></div>`,
-                    className: '', iconSize: [24, 24]
-                });
-                L.marker([a.location.y, a.location.x], {icon: wIcon})
-                 .addTo(wazeLayer)
-                 .bindPopup(`<b>Waze: ${a.subtype || a.type}</b><br>${a.reportDescription || ''}`);
-            }
-        });
-        alert(`Đã tìm thấy ${count} báo cáo từ Waze.`);
+
+        if (data.alerts && data.alerts.length > 0) {
+            data.alerts.forEach(a => {
+                if (a.type === "ACCIDENT" || a.type === "ROAD_CLOSED" || a.type === "JAM") {
+                    count++;
+                    const wIcon = L.divIcon({
+                        html: `<div style="background:white; border-radius:50%; padding:3px; border:2px solid #33ccff; display:flex; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><img src="https://www.waze.com/favicon.ico" width="16"></div>`,
+                        className: '', iconSize: [24, 24]
+                    });
+                    L.marker([a.location.y, a.location.x], {icon: wIcon})
+                     .addTo(wazeLayer)
+                     .bindPopup(`<b>Waze: ${a.subtype || a.type}</b><br>${a.reportDescription || 'Không có mô tả'}<br><small>${new Date().toLocaleTimeString()}</small>`);
+                }
+            });
+            alert(`Đã cập nhật ${count} sự cố từ Waze.`);
+        } else {
+            alert("Không có sự cố nào được ghi nhận từ Waze tại khu vực này.");
+        }
     } catch (e) {
-        alert("Không thể lấy dữ liệu Waze. Hãy thử lại sau.");
+        console.error("Lỗi Fetch Waze:", e);
+        alert("Không thể lấy dữ liệu Waze qua Proxy. Hãy thử lại sau hoặc kiểm tra kết nối mạng.");
     }
-    monitorTraffic(); // Refresh lại status TomTom
+    monitorTraffic(); 
 }
 
-// Hàm giám sát chính
 async function monitorTraffic() {
     const list = document.getElementById('location-list');
     const statusBox = document.getElementById('global-status');
