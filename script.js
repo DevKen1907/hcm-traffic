@@ -34,42 +34,23 @@ const LOCATIONS = [
     { name: "Cầu vượt Tân Vạn", lat: 10.8875, lon: 106.8285 }
 ];
 
+// Khởi tạo bản đồ
 var map = L.map('map', { center: [10.7769, 106.7009], zoom: 11, zoomControl: false });
 
-// 1. Layer nền TomTom
-L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`).addTo(map);
+// 1. LỚP NỀN (Chỉ có bản đồ, không có nhãn)
+L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${TOMTOM_KEY}&map=2d&labels=false`).addTo(map);
 
-// 2. Layer Traffic Flow (Hiển thị các đường màu xanh/đỏ trên bản đồ)
-L.tileLayer(`https://{s}.api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`, { opacity: 0.7 }).addTo(map);
+// 2. LỚP RANH GIỚI HÀNH CHÍNH (Phường/Xã từ TomTom)
+L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/clv/main/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`).addTo(map);
 
-// --- PHẦN THÊM MỚI: Nạp ranh giới 168 phường xã ---
-async function loadNewBoundaries() {
-    try {
-        // Thay 'DevKen1.json' bằng đường dẫn file bạn vừa export từ Mapshaper
-        const response = await fetch('DevKen1.json');
-        const geoData = await response.json();
+// 3. LỚP GIAO THÔNG (Absolute - Hiện đủ Xanh/Vàng/Đỏ)
+var trafficLayer = L.tileLayer(`https://{s}.api.tomtom.com/traffic/map/4/tile/flow/absolute/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`, { 
+    opacity: 0.8,
+    pane: 'tilePane'
+}).addTo(map);
 
-        L.geoJSON(geoData, {
-            style: {
-                color: '#2c3e50', // Màu đường ranh giới (xám đậm)
-                weight: 1,
-                opacity: 0.5,
-                fillColor: '#34495e',
-                fillOpacity: 0.05 // Để mờ để không đè mất lớp traffic
-            },
-            onEachFeature: function (feature, layer) {
-                // Hiển thị tên phường mới khi di chuột vào vùng ranh giới
-                if (feature.properties && feature.properties.name) {
-                    layer.bindTooltip(feature.properties.name, { sticky: true });
-                }
-            }
-        }).addTo(map);
-    } catch (error) {
-        console.error("Không thể nạp dữ liệu ranh giới:", error);
-    }
-}
-loadNewBoundaries();
-// ------------------------------------------------
+// 4. LỚP NHÃN (Tên đường, địa danh - Luôn nằm trên cùng để dễ đọc)
+L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/hybrid/main/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`).addTo(map);
 
 var markers = {};
 var incidentLayer = L.layerGroup().addTo(map);
@@ -79,11 +60,10 @@ function focusOn(lat, lon, name) {
     if(markers[name]) markers[name].openPopup();
 }
 
-// Hàm lấy dữ liệu sự cố (Accidents/Road Closure) từ TomTom Incident API
 async function fetchTomTomIncidents() {
-    // Bounding Box của HCM
     const bbox = "106.3,10.5,107.0,11.1"; 
-    const url = `https://api.tomtom.com/traffic/services/4/incidentDetails/s3/${bbox}/11/-1/json?key=${TOMTOM_KEY}&trafficModelID=-1`;
+    const currentZoom = Math.round(map.getZoom());
+    const url = `https://api.tomtom.com/traffic/services/4/incidentDetails/s3/${bbox}/${currentZoom}/-1/json?key=${TOMTOM_KEY}&trafficModelID=-1`;
 
     try {
         const res = await fetch(url);
@@ -92,15 +72,14 @@ async function fetchTomTomIncidents() {
 
         if (data.tm && data.tm.poi) {
             data.tm.poi.forEach(incident => {
-                // p: loại sự cố (1: Tai nạn, 2: Kẹt xe, 8: Đóng đường...)
                 let iconHtml = '';
-                if (incident.p === 1) iconHtml = '⚠️'; // Tai nạn
-                if (incident.p === 8) iconHtml = '🚫'; // Đóng đường
-                if (incident.p === 6) iconHtml = '🚧'; // Công trình
+                if (incident.p === 1) iconHtml = '⚠️'; 
+                if (incident.p === 8) iconHtml = '🚫'; 
+                if (incident.p === 6) iconHtml = '🚧'; 
 
                 if (iconHtml) {
                     const icon = L.divIcon({
-                        html: `<div style="font-size: 20px;">${iconHtml}</div>`,
+                        html: `<div style="font-size: 20px; filter: drop-shadow(0 0 2px white);">${iconHtml}</div>`,
                         className: '', iconSize: [25, 25]
                     });
                     L.marker([incident.y, incident.x], {icon: icon})
@@ -114,7 +93,6 @@ async function fetchTomTomIncidents() {
     }
 }
 
-// Hàm giám sát tốc độ tại 31 điểm
 async function updateTrafficData() {
     const list = document.getElementById('location-list');
     const statusBox = document.getElementById('global-status');
@@ -123,7 +101,7 @@ async function updateTrafficData() {
     let dangerCount = 0;
     if (list) list.innerHTML = '';
 
-    await fetchTomTomIncidents(); // Cập nhật sự cố trước
+    await fetchTomTomIncidents();
 
     const promises = LOCATIONS.map(async (loc) => {
         try {
@@ -137,10 +115,14 @@ async function updateTrafficData() {
 
             const color = isCongested ? '#d93025' : '#188038';
             
-            if(markers[loc.name]) map.removeLayer(markers[loc.name]);
-            markers[loc.name] = L.circleMarker([loc.lat, loc.lon], { 
-                radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.9 
-            }).addTo(map).bindPopup(`<b>${loc.name}</b><br>Tốc độ: ${flow.currentSpeed} km/h`);
+            // Cập nhật Marker thay vì xóa đi tạo lại
+            if(!markers[loc.name]) {
+                markers[loc.name] = L.circleMarker([loc.lat, loc.lon], { 
+                    radius: 8, color: '#fff', weight: 2, fillOpacity: 0.9 
+                }).addTo(map);
+            }
+            markers[loc.name].setStyle({ fillColor: color });
+            markers[loc.name].bindPopup(`<b>${loc.name}</b><br>Tốc độ: ${flow.currentSpeed} km/h`);
 
             const div = document.createElement('div');
             div.className = 'location-item';
@@ -158,7 +140,10 @@ async function updateTrafficData() {
 
     statusBox.innerText = dangerCount > 0 ? `CẢNH BÁO: ${dangerCount} ĐIỂM ÙN TẮC` : "GIAO THÔNG ĐANG ỔN ĐỊNH";
     statusBox.style.color = dangerCount > 0 ? '#d93025' : '#188038';
+    
+    // Làm mới lớp giao thông trên bản đồ
+    trafficLayer.redraw();
 }
 
 updateTrafficData();
-setInterval(updateTrafficData, 120000); // Tự động cập nhật mỗi 2 phút
+setInterval(updateTrafficData, 120000);
