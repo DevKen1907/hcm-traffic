@@ -37,20 +37,27 @@ const LOCATIONS = [
 // Khởi tạo bản đồ
 var map = L.map('map', { center: [10.7769, 106.7009], zoom: 11, zoomControl: false });
 
-// 1. LỚP NỀN (Chỉ có bản đồ, không có nhãn)
-L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${TOMTOM_KEY}&map=2d&labels=false`).addTo(map);
+// TẠO CÁC LỚP THỨ TỰ (PANES)
+map.createPane('trafficPane');
+map.getPane('trafficPane').style.zIndex = 400; // Nằm trên lớp nền
 
-// 2. LỚP RANH GIỚI HÀNH CHÍNH (Phường/Xã từ TomTom)
-L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/clv/main/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`).addTo(map);
+map.createPane('labelsPane');
+map.getPane('labelsPane').style.zIndex = 600; // Nằm trên cả lớp giao thông
+map.getPane('labelsPane').style.pointerEvents = 'none'; // Click xuyên qua nhãn
 
-// 3. LỚP GIAO THÔNG (Absolute - Hiện đủ Xanh/Vàng/Đỏ)
+// 1. LỚP NỀN (Màu sáng nhẹ - Sạch hơn)
+L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/basic/light/{z}/{x}/{y}.png?key=${TOMTOM_KEY}&labels=false`).addTo(map);
+
+// 2. LỚP GIAO THÔNG (Absolute - Hiện đủ Xanh/Vàng/Đỏ)
 var trafficLayer = L.tileLayer(`https://{s}.api.tomtom.com/traffic/map/4/tile/flow/absolute/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`, { 
     opacity: 0.8,
-    pane: 'tilePane'
+    pane: 'trafficPane' 
 }).addTo(map);
 
-// 4. LỚP NHÃN (Tên đường, địa danh - Luôn nằm trên cùng để dễ đọc)
-L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/hybrid/main/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`).addTo(map);
+// 3. LỚP NHÃN & RANH GIỚI (Hiện trên cùng của lớp giao thông)
+L.tileLayer(`https://{s}.api.tomtom.com/map/1/tile/hybrid/main/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`, {
+    pane: 'labelsPane'
+}).addTo(map);
 
 var markers = {};
 var incidentLayer = L.layerGroup().addTo(map);
@@ -115,7 +122,6 @@ async function updateTrafficData() {
 
             const color = isCongested ? '#d93025' : '#188038';
             
-            // Cập nhật Marker thay vì xóa đi tạo lại
             if(!markers[loc.name]) {
                 markers[loc.name] = L.circleMarker([loc.lat, loc.lon], { 
                     radius: 8, color: '#fff', weight: 2, fillOpacity: 0.9 
@@ -141,7 +147,6 @@ async function updateTrafficData() {
     statusBox.innerText = dangerCount > 0 ? `CẢNH BÁO: ${dangerCount} ĐIỂM ÙN TẮC` : "GIAO THÔNG ĐANG ỔN ĐỊNH";
     statusBox.style.color = dangerCount > 0 ? '#d93025' : '#188038';
     
-    // Làm mới lớp giao thông trên bản đồ
     trafficLayer.redraw();
 }
 
